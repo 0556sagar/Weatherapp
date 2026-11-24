@@ -111,7 +111,8 @@ class WeatherProvider with ChangeNotifier {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-              'Location permissions are permanently denied, we cannot request permissions.'),
+            'Location permissions are permanently denied, we cannot request permissions.',
+          ),
         ),
       );
       return null;
@@ -133,7 +134,7 @@ class WeatherProvider with ChangeNotifier {
       if (loc != null) {
         currentLocation = LatLng(loc.latitude, loc.longitude);
       } else {
-        currentLocation = const LatLng(28.6139, 77.2090);
+        currentLocation = LatLng(28.6139, 77.2090);
       }
       await getCurrentWeather(currentLocation!);
       await getDailyWeather(currentLocation!);
@@ -146,218 +147,139 @@ class WeatherProvider with ChangeNotifier {
   }
 
   Future<void> getCurrentWeather(LatLng location) async {
-    final url =
-        'https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current_weather=true&hourly=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,uv_index_max,precipitation_probability_max&timezone=auto';
-
-    final response = await http.get(Uri.parse(url));
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load weather');
-    }
-
-    final data = json.decode(response.body);
-    final current = data['current_weather'];
-    final hourly = data['hourly'];
-    final daily = data['daily'];
-
-    double temp = (current['temperature'] as num).toDouble();
-    double wind = (current['windspeed'] as num).toDouble();
-    int code = (current['weathercode'] as num).toInt();
-
-    int humidity = 0;
-    int pressure = 1013;
-    if (hourly != null) {
-      if (hourly['relative_humidity_2m'] != null &&
-          (hourly['relative_humidity_2m'] as List).isNotEmpty) {
-        humidity = (hourly['relative_humidity_2m'][0] as num).toInt();
-      }
-      if (hourly['surface_pressure'] != null &&
-          (hourly['surface_pressure'] as List).isNotEmpty) {
-        pressure = (hourly['surface_pressure'][0] as num).round();
-      }
-    }
-
-    double tempMax = temp;
-    double tempMin = temp;
-    double uvi = 0.0;
-    String precip = '0%';
-    if (daily != null) {
-      if (daily['temperature_2m_max'] != null &&
-          (daily['temperature_2m_max'] as List).isNotEmpty) {
-        tempMax = (daily['temperature_2m_max'][0] as num).toDouble();
-      }
-      if (daily['temperature_2m_min'] != null &&
-          (daily['temperature_2m_min'] as List).isNotEmpty) {
-        tempMin = (daily['temperature_2m_min'][0] as num).toDouble();
-      }
-      if (daily['uv_index_max'] != null &&
-          (daily['uv_index_max'] as List).isNotEmpty) {
-        uvi = (daily['uv_index_max'][0] as num).toDouble();
-      }
-      if (daily['precipitation_probability_max'] != null &&
-          (daily['precipitation_probability_max'] as List).isNotEmpty) {
-        precip = '${daily['precipitation_probability_max'][0]}%';
-      }
-    }
-
-    var condition = mapWmoCode(code);
-
-    String cityName = 'Current Location';
-    String countryCode = 'IN';
+    Uri url = Uri.parse(
+      'https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current_weather=true&relativehumidity_2m=true&apparent_temperature=true&surface_pressure=true&daily=temperature_2m_max,temperature_2m_min&timezone=auto',
+    );
     try {
-      if (weather.city.isNotEmpty && weather.city != 'Search Site') {
-        cityName = weather.city;
-      }
-    } catch (_) {}
+      final response = await http.get(url);
+      final extractedData = json.decode(response.body) as Map<String, dynamic>;
+      final currentWeather = extractedData['current_weather'];
+      final humidity = extractedData['hourly'] != null
+          ? extractedData['hourly']['relativehumidity_2m'][0]
+          : 0;
+      final apparentTemp = extractedData['hourly'] != null
+          ? extractedData['hourly']['apparent_temperature'][0]
+          : 0;
+      final pressure = extractedData['hourly'] != null
+          ? extractedData['hourly']['surface_pressure'][0]
+          : 0;
+      final dailyMax = extractedData['daily']['temperature_2m_max'][0];
+      final dailyMin = extractedData['daily']['temperature_2m_min'][0];
 
-    weather = Weather(
-      temp: temp,
-      tempMax: tempMax,
-      tempMin: tempMin,
-      lat: location.latitude,
-      long: location.longitude,
-      feelsLike: temp,
-      pressure: pressure,
-      description: condition.description,
-      weatherCategory: condition.category,
-      humidity: humidity,
-      windSpeed: wind,
-      city: cityName,
-      countryCode: countryCode,
-    );
+      final wmoCode = currentWeather['weathercode'] as int;
+      final conditionMap = mapWmoCode(wmoCode);
 
-    additionalWeatherData = AdditionalWeatherData(
-      precipitation: precip,
-      uvi: uvi,
-      clouds: 0,
-    );
+      weather = Weather(
+        temp: (currentWeather['temperature'] as num).toDouble(),
+        tempMax: (dailyMax as num).toDouble(),
+        tempMin: (dailyMin as num).toDouble(),
+        description: conditionMap.description,
+        currently: conditionMap.category,
+        wind: (currentWeather['windspeed'] as num).toDouble(),
+        cityName: 'Current Location',
+      );
 
-    hourlyWeather = [];
-    if (hourly != null && hourly['time'] != null) {
-      final times = hourly['time'] as List;
-      final temps = hourly['temperature_2m'] as List;
-      final codes = hourly['weather_code'] as List;
-      int count = times.length > 24 ? 24 : times.length;
-      for (int i = 0; i < count; i++) {
-        int hCode = (codes[i] as num).toInt();
-        var hCond = mapWmoCode(hCode);
-        hourlyWeather.add(HourlyWeather(
-          temp: (temps[i] as num).toDouble(),
-          weatherCategory: hCond.category,
-          condition: hCond.description,
-          date: DateTime.parse(times[i].toString()),
-        ));
-      }
+      additionalWeatherData = AdditionalWeatherData(
+        precipitation: '0',
+        humidity: humidity.toString(),
+        wind: (currentWeather['windspeed'] as num).toDouble(),
+        pressure: pressure.toString(),
+      );
+    } catch (e) {
+      print(e);
+      rethrow;
     }
   }
 
   Future<void> getDailyWeather(LatLng location) async {
-    final url =
-        'https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,precipitation_probability_max&timezone=auto';
+    Uri url = Uri.parse(
+      'https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&daily=weathercode,temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weathercode,relativehumidity_2m,windspeed_10m&timezone=auto',
+    );
+    try {
+      final response = await http.get(url);
+      final extractedData = json.decode(response.body) as Map<String, dynamic>;
+      final dailyData = extractedData['daily'];
+      final hourlyData = extractedData['hourly'];
 
-    final response = await http.get(Uri.parse(url));
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load daily weather');
-    }
-
-    final data = json.decode(response.body);
-    final daily = data['daily'];
-
-    dailyWeather = [];
-    if (daily != null && daily['time'] != null) {
-      final dates = daily['time'] as List;
-      final maxTemps = daily['temperature_2m_max'] as List;
-      final minTemps = daily['temperature_2m_min'] as List;
-      final codes = daily['weather_code'] as List;
-      final uvis = daily['uv_index_max'] as List?;
-      final precips = daily['precipitation_probability_max'] as List?;
+      List<DailyWeather> tempDaily = [];
+      List<String> dates = List<String>.from(dailyData['time']);
+      List<double> maxTemps =
+          List<num>.from(dailyData['temperature_2m_max'])
+              .map((e) => e.toDouble())
+              .toList();
+      List<double> minTemps =
+          List<num>.from(dailyData['temperature_2m_min'])
+              .map((e) => e.toDouble())
+              .toList();
+      List<int> codes = List<int>.from(dailyData['weathercode']);
 
       for (int i = 0; i < dates.length; i++) {
-        int dCode = (codes[i] as num).toInt();
-        var dCond = mapWmoCode(dCode);
-        double maxT = (maxTemps[i] as num).toDouble();
-        double minT = (minTemps[i] as num).toDouble();
-
-        dailyWeather.add(DailyWeather(
-          temp: maxT,
-          tempMin: minT,
-          tempMax: maxT,
-          tempMorning: minT,
-          tempDay: maxT,
-          tempEvening: (maxT + minT) / 2,
-          tempNight: minT,
-          weatherCategory: dCond.category,
-          condition: dCond.description,
-          date: DateTime.parse(dates[i].toString()),
-          precipitation:
-              '${precips != null && i < precips.length ? precips[i] ?? 0 : 0}%',
-          uvi: uvis != null && i < uvis.length ? (uvis[i] as num).toDouble() : 0.0,
-          clouds: 0,
-          humidity: 0,
-        ));
+        final cond = mapWmoCode(codes[i]);
+        tempDaily.add(
+          DailyWeather(
+            dailyTemp: maxTemps[i],
+            condition: cond.category,
+            date: DateTime.parse(dates[i]),
+          ),
+        );
       }
+      dailyWeather = tempDaily;
+
+      List<HourlyWeather> tempHourly = [];
+      List<String> hourlyTimes = List<String>.from(hourlyData['time']);
+      List<double> hourlyTemps =
+          List<num>.from(hourlyData['temperature_2m'])
+              .map((e) => e.toDouble())
+              .toList();
+      List<int> hourlyCodes = List<int>.from(hourlyData['weathercode']);
+
+      for (int i = 0; i < hourlyTimes.length && i < 24; i++) {
+        final cond = mapWmoCode(hourlyCodes[i]);
+        tempHourly.add(
+          HourlyWeather(
+            hourlyTemp: hourlyTemps[i],
+            condition: cond.category,
+            date: DateTime.parse(hourlyTimes[i]),
+          ),
+        );
+      }
+      hourlyWeather = tempHourly;
+    } catch (e) {
+      print(e);
+      rethrow;
     }
   }
 
-  Future<GeocodeData?> locationToLatLng(String location) async {
-    final trimmed = location.trim();
-    if (RegExp(r'^\d{6}$').hasMatch(trimmed)) {
-      try {
-        final pincodeUrl =
-            'https://aniket-thapa.github.io/india-pincode-api/pincodes/$trimmed.json';
-        final res = await http.get(Uri.parse(pincodeUrl));
-        if (res.statusCode == 200) {
-          final data = json.decode(res.body);
-          Map<String, dynamic>? item;
-          if (data is List && data.isNotEmpty) {
-            item = data[0] as Map<String, dynamic>;
-          } else if (data is Map<String, dynamic>) {
-            item = data;
-          }
-          if (item != null) {
-            double? lat = double.tryParse(item['latitude']?.toString() ?? '');
-            double? lng = double.tryParse(item['longitude']?.toString() ?? '');
-            String name = item['officeName']?.toString() ??
-                item['district']?.toString() ??
-                item['circleName']?.toString() ??
-                trimmed;
-            if (lat != null && lng != null) {
-              return GeocodeData(name: name, latLng: LatLng(lat, lng));
-            }
-          }
-        }
-      } catch (_) {}
-    }
-
-    try {
-      final geoUrl =
-          'https://geocoding-api.open-meteo.com/v1/search?name=${Uri.encodeComponent(trimmed)}&count=5&language=en&format=json';
-      final res = await http.get(Uri.parse(geoUrl));
-      if (res.statusCode == 200) {
-        final data = json.decode(res.body);
-        if (data['results'] != null && (data['results'] as List).isNotEmpty) {
-          final first = data['results'][0];
-          String name = first['name']?.toString() ?? trimmed;
-          double lat = (first['latitude'] as num).toDouble();
-          double lng = (first['longitude'] as num).toDouble();
-          return GeocodeData(name: name, latLng: LatLng(lat, lng));
-        }
-      }
-    } catch (_) {}
-
-    return null;
-  }
-
-  Future<void> searchWeather(String location) async {
-    isLoading = true;
+  Future<void> searchCity(String city) async {
     isSearchError = false;
+    isLoading = true;
     notifyListeners();
 
     try {
-      GeocodeData? geocodeData = await locationToLatLng(location);
-      if (geocodeData != null) {
-        await getCurrentWeather(geocodeData.latLng);
-        await getDailyWeather(geocodeData.latLng);
-        weather.city = geocodeData.name;
+      Uri url = Uri.parse(
+        'https://geocoding-api.open-meteo.com/v1/search?name=$city&count=1&language=en&format=json',
+      );
+      final response = await http.get(url);
+      final extractedData = json.decode(response.body) as Map<String, dynamic>;
+
+      if (extractedData['results'] != null &&
+          (extractedData['results'] as List).isNotEmpty) {
+        final result = extractedData['results'][0];
+        final double lat = (result['latitude'] as num).toDouble();
+        final double lon = (result['longitude'] as num).toDouble();
+
+        currentLocation = LatLng(lat, lon);
+        await getCurrentWeather(currentLocation!);
+        await getDailyWeather(currentLocation!);
+        weather = Weather(
+          temp: weather.temp,
+          tempMax: weather.tempMax,
+          tempMin: weather.tempMin,
+          description: weather.description,
+          currently: weather.currently,
+          wind: weather.wind,
+          cityName: result['name'],
+        );
       } else {
         isSearchError = true;
       }
@@ -369,7 +291,7 @@ class WeatherProvider with ChangeNotifier {
     }
   }
 
-  void switchTempUnit() {
+  void toggleUnit() {
     isCelsius = !isCelsius;
     notifyListeners();
   }
