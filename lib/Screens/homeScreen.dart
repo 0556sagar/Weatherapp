@@ -15,7 +15,7 @@ import '../widgets/mainWeatherInfo.dart';
 import '../widgets/sevenDayForecast.dart';
 import '../widgets/twentyFourHourForecast.dart';
 
-import 'requestError.dart';
+import '../screens/requestError.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -98,100 +98,55 @@ class CustomSearchBar extends StatefulWidget {
 }
 
 class _CustomSearchBarState extends State<CustomSearchBar> {
-  List<String> _citiesSuggestion = [
-    'New York',
-    'Tokyo',
-    'Dubai',
-    'London',
-    'Singapore',
-    'Sydney',
-    'Wellington'
-  ];
-
   @override
   Widget build(BuildContext context) {
     return FloatingSearchBar(
       controller: widget.fsc,
-      hint: 'Search...',
-      clearQueryOnClose: false,
-      scrollPadding: const EdgeInsets.only(top: 16.0, bottom: 56.0),
-      transitionDuration: const Duration(milliseconds: 400),
-      borderRadius: BorderRadius.circular(16.0),
+      hint: 'Search City...',
+      hintStyle: semiboldText.copyWith(color: lightText),
+      textStyle: semiboldText.copyWith(color: darkText),
+      contentType: ContentType.model,
+      elevation: 0.0,
+      maxWidth: MediaQuery.of(context).size.width,
+      shadowColor: Colors.transparent,
+      backgroundColor: backgroundWhite,
+      iconColor: darkText,
+      transitionDuration: const Duration(milliseconds: 500),
       transitionCurve: Curves.easeInOut,
-      accentColor: primaryBlue,
-      hintStyle: regularText,
-      queryStyle: regularText,
       physics: const BouncingScrollPhysics(),
-      elevation: 2.0,
+      axisAlignment: 0.0,
+      openAxisAlignment: 0.0,
       debounceDelay: const Duration(milliseconds: 500),
       onQueryChanged: (query) {},
       onSubmitted: (query) async {
-        widget.fsc.close();
         await Provider.of<WeatherProvider>(context, listen: false)
             .searchWeather(query);
+        widget.fsc.clear();
+        widget.fsc.close();
       },
-      transition: CircularFloatingSearchBarTransition(),
       actions: [
         FloatingSearchBarAction(
           showIfOpened: false,
-          child: PhosphorIcon(
-            PhosphorIconsBold.magnifyingGlass,
-            color: primaryBlue,
+          child: CircularButton(
+            icon: const Icon(
+              PhosphorIcons.magnifyingGlassBold,
+              color: darkText,
+            ),
+            onPressed: () {
+              widget.fsc.open();
+            },
           ),
         ),
-        FloatingSearchBarAction.icon(
+        FloatingSearchBarAction.searchToClear(
           showIfClosed: false,
-          showIfOpened: true,
-          icon: PhosphorIcon(
-            PhosphorIconsBold.x,
-            color: primaryBlue,
-          ),
-          onTap: () {
-            if (widget.fsc.query.isEmpty) {
-              widget.fsc.close();
-            } else {
-              widget.fsc.clear();
-            }
-          },
         ),
       ],
       builder: (context, transition) {
         return ClipRRect(
           borderRadius: BorderRadius.circular(8.0),
           child: Material(
-            color: Colors.white,
+            color: backgroundWhite,
             elevation: 4.0,
-            child: ListView.separated(
-              shrinkWrap: true,
-              physics: BouncingScrollPhysics(),
-              padding: EdgeInsets.zero,
-              itemCount: _citiesSuggestion.length,
-              itemBuilder: (context, index) {
-                String data = _citiesSuggestion[index];
-                return InkWell(
-                  onTap: () async {
-                    widget.fsc.query = data;
-                    widget.fsc.close();
-                    await Provider.of<WeatherProvider>(context, listen: false)
-                        .searchWeather(data);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(22.0),
-                    child: Row(
-                      children: [
-                        PhosphorIcon(PhosphorIconsFill.mapPin),
-                        const SizedBox(width: 22.0),
-                        Text(data, style: mediumText),
-                      ],
-                    ),
-                  ),
-                );
-              },
-              separatorBuilder: (context, index) => Divider(
-                thickness: 1.0,
-                height: 0.0,
-              ),
-            ),
           ),
         );
       },
