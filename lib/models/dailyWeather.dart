@@ -18,7 +18,8 @@ class DailyWeather with ChangeNotifier {
   final int humidity;
 
   DailyWeather({
-    required this.temp,
+    double? temp,
+    double? dailyTemp,
     required this.tempMin,
     required this.tempMax,
     required this.tempMorning,
@@ -32,7 +33,9 @@ class DailyWeather with ChangeNotifier {
     required this.uvi,
     required this.clouds,
     required this.humidity,
-  });
+  }) : temp = temp ?? dailyTemp ?? 0.0;
+
+  double get dailyTemp => temp;
 
   static DailyWeather fromDailyJson(dynamic json) {
     return DailyWeather(
