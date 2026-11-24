@@ -25,12 +25,17 @@ class Weather with ChangeNotifier {
     required this.feelsLike,
     required this.pressure,
     required this.description,
-    required this.weatherCategory,
+    String? weatherCategory,
+    String? currently,
+    String? condition,
     required this.humidity,
     required this.windSpeed,
     required this.city,
     required this.countryCode,
-  });
+  }) : weatherCategory = weatherCategory ?? currently ?? condition ?? '';
+
+  String get currently => weatherCategory;
+  String get condition => weatherCategory;
 
   factory Weather.fromJson(Map<String, dynamic> json) {
     return Weather(
