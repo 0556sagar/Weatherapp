@@ -24,10 +24,10 @@ dependencies:
   shimmer: ^3.0.0
   simple_animations: ^5.0.0+3
   supercharged: ^2.1.1
-  win32: ^5.5.0
+  win32: 5.5.0
 
 dependency_overrides:
-  win32: ^5.5.0
+  win32: 5.5.0
 
 dev_dependencies:
   flutter_test:
