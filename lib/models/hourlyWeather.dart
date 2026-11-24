@@ -6,11 +6,14 @@ class HourlyWeather {
   final DateTime date;
 
   HourlyWeather({
-    required this.temp,
+    double? temp,
+    double? hourlyTemp,
     required this.weatherCategory,
     this.condition,
     required this.date,
-  });
+  }) : temp = temp ?? hourlyTemp ?? 0.0;
+
+  double get hourlyTemp => temp;
 
   static HourlyWeather fromJson(dynamic json) {
     return HourlyWeather(
