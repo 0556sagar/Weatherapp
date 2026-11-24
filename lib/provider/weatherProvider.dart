@@ -295,4 +295,8 @@ class WeatherProvider with ChangeNotifier {
     isCelsius = !isCelsius;
     notifyListeners();
   }
+
+  void switchTempUnit() {
+    toggleUnit();
+  }
 }
